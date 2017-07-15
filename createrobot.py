@@ -2,6 +2,9 @@
 from Tkinter import *
 import struct
 import serial
+import sys, glob
+import tkSimpleDialog
+import tkMessageBox
 
 # Global variables
 connection = None
@@ -34,7 +37,7 @@ def sendCommandASCII(command):
             cmd += chr(int(v))
 
         sendCommandRaw(cmd)
-    
+
 # Keyboard Event Function
 def callbackKey(event):
     k = event.keysym.upper()
@@ -105,17 +108,61 @@ def callbackKey(event):
 def onConnect():
     global connection
 
-    port = "COM4"
+    if connection is not None:
+        tkMessageBox.showinfo('Oops', "You're already connected!")
+        return
 
     try:
-        connection = serial.Serial(port, baudrate=115200, timeout=1)
-        print "Connected!"
-    except serial.SerialException:
-        print "Failed to connect!"
+        ports = getSerialPorts()
+        port = tkSimpleDialog.askstring('Port?', 'Enter COM port to open.\nAvailable options:\n' + '\n'.join(ports))
+    except EnvironmentError:
+        port = tkSimpleDialog.askstring('Port?', 'Enter COM port to open.')
+
+    if port is not None:
+        print "Trying " + str(port) + "... "
+        try:
+            connection = serial.Serial(port, baudrate=115200, timeout=1)
+            print "Connected!"
+            tkMessageBox.showinfo('Connected', "Connection succeeded!")
+        except:
+            print "Failed."
+            tkMessageBox.showinfo('Failed', "Sorry, couldn't connect to " + str(port))
 
 #Quit Function
 def onQuit():
     root.destroy()
+
+def getSerialPorts():
+    """Lists serial ports
+    From http://stackoverflow.com/questions/12090503/listing-available-com-ports-with-python
+
+    :raises EnvironmentError:
+        On unsupported or unknown platforms
+    :returns:
+        A list of available serial ports
+    """
+    if sys.platform.startswith('win'):
+        ports = ['COM' + str(i + 1) for i in range(256)]
+
+    elif sys.platform.startswith('linux') or sys.platform.startswith('cygwin'):
+        # this is to exclude your current terminal "/dev/tty"
+        ports = glob.glob('/dev/tty[A-Za-z]*')
+
+    elif sys.platform.startswith('darwin'):
+        ports = glob.glob('/dev/tty.*')
+
+    else:
+        raise EnvironmentError('Unsupported platform')
+
+    result = []
+    for port in ports:
+        try:
+            s = serial.Serial(port)
+            s.close()
+            result.append(port)
+        except (OSError, serial.SerialException):
+            pass
+    return result
 
 #Main Body
 callbackKey.up = False
@@ -144,5 +191,3 @@ root.bind("<KeyRelease>", callbackKey)
 
 #start main loop
 root.mainloop()
-
-    
